@@ -1,0 +1,49 @@
+Screen {
+    layout: vertical;
+}
+
+#filters {
+    width: 1.5fr;
+    height: 100%;
+    border-right: solid $primary;
+    padding: 1;
+}
+
+#log {
+    width: 3.5fr;
+    height: 100%;
+    padding: 1;
+}
+
+#filters-grid {
+    height: auto;
+    padding-bottom: 1;
+}
+
+#attachment-options-container {
+    height: auto;
+}
+
+Label {
+    text-align: left;
+    padding-bottom: 0;
+}
+
+Horizontal {
+    align: center middle;
+}
+
+#buttons {
+    height: auto;
+    align: right middle;
+    padding-top: 1;
+}
+
+Button {
+    margin-left: 1;
+}
+
+RadioSet {
+    margin-top: 1;
+    margin-bottom: 1;
+}

@@ -69,10 +69,12 @@ class OutlookExportTUI(App):
                     label.tooltip = "Include images and other files embedded in the email body (e.g., signatures)."
                     yield label
                     yield Checkbox(id="include-inline")
-                    label = Label("Export Full Email (.msg)")
-                    label.tooltip = "Export the entire email as a .msg file instead of just the attachments."
-                    yield label
-                    yield Checkbox(id="export-mail")
+                with Vertical(id="export-options-container"):
+                    yield Label("Export Options:", classes="grid-span-2")
+                    with RadioSet(id="export-options", classes="grid-span-2"):
+                        yield RadioButton("Attachments only", id="attachments-only")
+                        yield RadioButton("Export Full Email (.msg)", id="export-msg")
+                        yield RadioButton("Export as Markdown (.md)", id="export-markdown")
                 with Vertical(id="attachment-options-container"):
                     yield Label("Attachment Options:", classes="grid-span-2")
                     with RadioSet(id="attachment-options", classes="grid-span-2"):
@@ -92,6 +94,7 @@ class OutlookExportTUI(App):
 
     def on_mount(self) -> None:
         """Called when the app is mounted."""
+        self.query_one("#attachments-only", RadioButton).value = True
         self.query_one("#all-emails", RadioButton).value = True
         log_widget = self.query_one(RichLog)
         handler = TuiLogger(log_widget)
@@ -123,10 +126,16 @@ class OutlookExportTUI(App):
                 logging.error("Output directory is required.")
                 return None
 
-            pressed_button = self.query_one(RadioSet).pressed_button
-            attachment_option_id = (
-                pressed_button.id if pressed_button else "all-emails"
-            )
+            # Get export options
+            export_radio = self.query_one("#export-options", RadioSet)
+            export_option_id = export_radio.pressed_button.id if export_radio.pressed_button else "attachments-only"
+            
+            export_mail = export_option_id == "export-msg"
+            export_markdown = export_option_id == "export-markdown"
+            
+            # Get attachment filter options
+            attachment_radio = self.query_one("#attachment-options", RadioSet)
+            attachment_option_id = attachment_radio.pressed_button.id if attachment_radio.pressed_button else "all-emails"
 
             with_attachments = attachment_option_id == "with-attachments"
             without_attachments = attachment_option_id == "without-attachments"
@@ -155,7 +164,8 @@ class OutlookExportTUI(App):
                 duplicates_subfolder="duplicates",
                 hash_algorithm="sha256",
                 include_inline=self.query_one("#include-inline", Checkbox).value,
-                export_mail=self.query_one("#export-mail", Checkbox).value,
+                export_mail=export_mail,
+                export_markdown=export_markdown,
                 subject_sanitize_length=80,
                 verbose=0,
                 quiet=False,

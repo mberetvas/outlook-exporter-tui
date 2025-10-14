@@ -38,6 +38,11 @@ try:
 except ImportError:  # pragma: no cover
     tqdm = None  # fallback: no progress bar
 
+try:
+    from markdownify import markdownify as md
+except ImportError:  # pragma: no cover
+    md = None  # fallback: no markdown conversion
+
 
 OUTLOOK_INBOX_ID = 6  # Default Inbox folder constant
 
@@ -62,6 +67,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--hash-algorithm", default="sha256", choices=hashlib.algorithms_available, help="Hash algorithm for duplicate detection")
     parser.add_argument("--include-inline", action="store_true", help="Include inline attachments (images in signatures). Default: skip them")
     parser.add_argument("--export-mail", action="store_true", help="Export the entire email as a .msg file")
+    parser.add_argument("--export-markdown", action="store_true", help="Export the entire email as a .md (markdown) file")
     parser.add_argument("--subject-sanitize-length", type=int, default=80, help="Max length of subject used in folder names")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (can repeat)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Quiet mode: only warnings/errors")
@@ -338,6 +344,135 @@ def save_mail(base_dir: Path, message, args: argparse.Namespace) -> Optional[Pat
         logging.warning("Failed to save email %s: %s", dest_path, e)
         return None
 
+def format_size(size_bytes: int) -> str:
+    """Format file size in human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} TB"
+
+def save_markdown(base_dir: Path, message, args: argparse.Namespace, saved_attachments: List[Path]) -> Optional[Path]:  # pragma: no cover
+    """Save email as markdown file with YAML frontmatter."""
+    if md is None:
+        logging.warning("markdownify not available. Install with 'pip install markdownify'")
+        return None
+    
+    # Extract email metadata
+    subject_raw = safe_get(message, "Subject", "") or "No Subject"
+    subject = sanitize_for_fs(subject_raw, args.subject_sanitize_length)
+    sender_email = safe_get(message, "SenderEmailAddress", "") or "unknown"
+    sender_name = safe_get(message, "SenderName", "") or sender_email
+    sender = sanitize_for_fs(sender_email, 120)
+    
+    # Recipients
+    to_recipients = safe_get(message, "To", "") or ""
+    cc_recipients = safe_get(message, "CC", "") or ""
+    
+    # Dates
+    received = safe_get(message, "ReceivedTime", datetime.now())
+    sent = safe_get(message, "SentOn", None)
+    
+    if hasattr(received, "Format"):  # COM date
+        try:
+            received = datetime.strptime(str(received), "%m/%d/%y %H:%M:%S")
+        except Exception:
+            received = datetime.now()
+    
+    if sent and hasattr(sent, "Format"):
+        try:
+            sent = datetime.strptime(str(sent), "%m/%d/%y %H:%M:%S")
+        except Exception:
+            sent = received
+    else:
+        sent = received
+    
+    # Create target directory
+    date_folder = received.strftime("%Y-%m-%d")
+    target_dir = base_dir / sender / subject / date_folder
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    filename = sanitize_for_fs(subject, 255) + ".md"
+    dest_path = target_dir / filename
+    
+    if args.dry_run:
+        logging.info("[DRY-RUN] Would save markdown: %s", dest_path)
+        return dest_path
+    
+    # Get email body
+    html_body = safe_get(message, "HTMLBody", "")
+    plain_body = safe_get(message, "Body", "")
+    
+    # Convert body to markdown
+    if html_body:
+        try:
+            body_markdown = md(html_body, heading_style="ATX", bullets="-")
+        except Exception as e:
+            logging.warning("Failed to convert HTML to markdown: %s. Using plain text.", e)
+            body_markdown = plain_body or ""
+    else:
+        body_markdown = plain_body or ""
+    
+    # Build markdown content
+    markdown_lines = []
+    
+    # YAML frontmatter
+    markdown_lines.append("---")
+    markdown_lines.append(f"from: {sender_email}")
+    if to_recipients:
+        markdown_lines.append(f"to: {to_recipients}")
+    if cc_recipients:
+        markdown_lines.append(f"cc: {cc_recipients}")
+    markdown_lines.append(f"subject: {subject_raw}")
+    markdown_lines.append(f"date: {sent.isoformat()}")
+    markdown_lines.append(f"received: {received.isoformat()}")
+    markdown_lines.append("---")
+    markdown_lines.append("")
+    
+    # Email header section
+    markdown_lines.append(f"# {subject_raw}")
+    markdown_lines.append("")
+    markdown_lines.append(f"**From:** {sender_name} ({sender_email})  ")
+    if to_recipients:
+        markdown_lines.append(f"**To:** {to_recipients}  ")
+    if cc_recipients:
+        markdown_lines.append(f"**CC:** {cc_recipients}  ")
+    markdown_lines.append(f"**Date:** {sent.strftime('%B %d, %Y %I:%M %p')}")
+    markdown_lines.append("")
+    markdown_lines.append("---")
+    markdown_lines.append("")
+    
+    # Email body
+    markdown_lines.append(body_markdown)
+    markdown_lines.append("")
+    
+    # Attachments section
+    if saved_attachments:
+        markdown_lines.append("---")
+        markdown_lines.append("")
+        markdown_lines.append("## Attachments")
+        markdown_lines.append("")
+        for attachment_path in saved_attachments:
+            try:
+                size = attachment_path.stat().st_size
+                size_str = format_size(size)
+                # Get relative path from markdown file to attachment
+                rel_path = os.path.relpath(attachment_path, dest_path.parent)
+                markdown_lines.append(f"- [{attachment_path.name}]({rel_path}) ({size_str})")
+            except Exception as e:
+                logging.debug("Failed to get attachment info for %s: %s", attachment_path, e)
+                markdown_lines.append(f"- {attachment_path.name}")
+    
+    # Write markdown file
+    try:
+        with dest_path.open('w', encoding='utf-8') as f:
+            f.write('\n'.join(markdown_lines))
+        logging.info("Saved markdown: %s", dest_path)
+        return dest_path
+    except Exception as e:
+        logging.warning("Failed to save markdown %s: %s", dest_path, e)
+        return None
+
 
 def process_messages(args: argparse.Namespace) -> int:  # pragma: no cover
     outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
@@ -359,6 +494,38 @@ def process_messages(args: argparse.Namespace) -> int:  # pragma: no cover
                 if path:
                     saved_count += 1
                 continue
+            if args.export_markdown:
+                # Save attachments first, then create markdown with references
+                saved_attachments: List[Path] = []
+                attachments = getattr(message, "Attachments", [])
+                if hasattr(attachments, "Count"):
+                    attach_count = int(attachments.Count)  # type: ignore[attr-defined]
+                else:
+                    attach_count = len(attachments)
+                
+                # Save all attachments
+                for idx in range(1, attach_count + 1):
+                    try:
+                        if hasattr(attachments, "Item"):
+                            attachment = attachments.Item(idx)  # type: ignore[attr-defined]
+                        else:
+                            attachment = attachments[idx - 1]
+                    except (IndexError, Exception) as e:
+                        logging.debug("Error accessing attachment %d: %s", idx, e)
+                        continue
+                    
+                    path = save_attachment(base_dir, message, attachment, args, seen_hashes)
+                    if path:
+                        saved_attachments.append(path)
+                        saved_count += 1
+                
+                # Save markdown with attachment references
+                path = save_markdown(base_dir, message, args, saved_attachments)
+                if path:
+                    saved_count += 1
+                continue
+            
+            # Default: just save attachments
             attachments = getattr(message, "Attachments", [])
             if hasattr(attachments, "Count"):
                 attach_count = int(attachments.Count)  # type: ignore[attr-defined]
@@ -403,6 +570,9 @@ def run_export(args: argparse.Namespace) -> int:
     logging.info("Starting Outlook attachments export")
     if args.with_attachments and args.without_attachments:
         logging.error("Cannot specify both --with-attachments and --without-attachments")
+        return 2
+    if args.export_mail and args.export_markdown:
+        logging.error("Cannot specify both --export-mail and --export-markdown")
         return 2
     pythoncom.CoInitialize()
     try:

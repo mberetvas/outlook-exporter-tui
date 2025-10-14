@@ -22,7 +22,7 @@ This tool provides both a command-line interface (CLI) and a terminal user inter
 - Filter emails by date range, sender, subject, or body content
 - Export attachments to structured folders organized by sender, subject, and date
 - Hash-based duplicate detection to avoid saving the same file multiple times
-- Export entire emails as `.msg` files
+- Export entire emails as `.msg` files or markdown `.md` files
 - Interactive TUI for easier configuration
 - Dry-run mode to preview actions before execution
 
@@ -134,6 +134,7 @@ Export Options:
   --folder PATH              Custom Outlook folder path (e.g. 'Inbox/SubFolder')
   --include-inline           Include inline attachments (images in signatures)
   --export-mail              Export entire email as .msg file
+  --export-markdown          Export entire email as .md (markdown) file
   --duplicates-subfolder     Name of subfolder for duplicates (default: duplicates)
   --hash-algorithm ALGO      Hash algorithm for duplicate detection (default: sha256)
 
@@ -207,6 +208,48 @@ Export entire emails as .msg files instead of just attachments:
 
 ```powershell
 uv run python main.py --output ./exports --export-mail --sender boss@company.com
+```
+
+### Export as Markdown
+
+Export emails as markdown files (ideal for LLM processing and archival):
+
+```powershell
+uv run python main.py --output ./exports --export-markdown --sender john@example.com
+```
+
+The markdown export creates `.md` files with:
+- **YAML frontmatter** with email metadata (from, to, cc, subject, dates)
+- **Converted HTML content** to clean markdown format
+- **Attachment references** with file sizes and relative paths
+- **LLM-optimized structure** for easy parsing and analysis
+
+Example markdown output:
+```markdown
+---
+from: sender@example.com
+to: recipient@example.com
+subject: Project Update - Q1 2024
+date: 2024-01-15T10:30:00
+received: 2024-01-15T10:30:15
+---
+
+# Project Update - Q1 2024
+
+**From:** John Doe (sender@example.com)  
+**To:** recipient@example.com  
+**Date:** January 15, 2024 10:30 AM
+
+---
+
+[Email body content as markdown...]
+
+---
+
+## Attachments
+
+- [report.pdf](./report.pdf) (2.3 MB)
+- [data.xlsx](./data.xlsx) (856.2 KB)
 ```
 
 ### Complex Filtering
@@ -363,4 +406,3 @@ Built with:
 ---
 
 Made with ❤️ for anyone drowning in email attachments
-

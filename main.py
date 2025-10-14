@@ -402,16 +402,39 @@ def save_markdown(base_dir: Path, message, args: argparse.Namespace, saved_attac
     # Get email body
     html_body = safe_get(message, "HTMLBody", "")
     plain_body = safe_get(message, "Body", "")
+    rtf_body = None
     
+    if not html_body and not plain_body:
+        try:
+            # Fallback to RTFBody if others are empty
+            rtf_body_bytes = safe_get(message, "RTFBody")
+            if rtf_body_bytes:
+                # This is a simplified conversion, might not handle all RTF features
+                # For a more robust solution, a dedicated RTF-to-text library would be better
+                rtf_body = rtf_body_bytes.decode('ascii', errors='ignore')
+                # Basic parsing to remove RTF control words
+                rtf_body = re.sub(r'{\\[^{}]+}|\\s\d+|\\pard|\\par|\n|\r', '', rtf_body)
+                rtf_body = re.sub(r'\\.[a-z0-9]+', '', rtf_body).strip()
+        except Exception as e:
+            logging.warning("Could not process RTFBody: %s", e)
+
     # Convert body to markdown
     if html_body:
         try:
             body_markdown = md(html_body, heading_style="ATX", bullets="-")
         except Exception as e:
             logging.warning("Failed to convert HTML to markdown: %s. Using plain text.", e)
-            body_markdown = plain_body or ""
+            body_markdown = plain_body or rtf_body or ""
     else:
-        body_markdown = plain_body or ""
+        body_markdown = plain_body or rtf_body or ""
+
+    if not body_markdown:
+        logging.warning(
+            "Email body is empty for subject: '%s'. "
+            "This could be due to Outlook security settings or an add-in blocking access. "
+            "Consider checking your Outlook COM Add-ins.",
+            subject_raw
+        )
     
     # Build markdown content
     markdown_lines = []

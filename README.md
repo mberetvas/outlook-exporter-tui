@@ -1,5 +1,9 @@
 # Outlook Attachments Export Tool
 
+> **Warning**
+> 
+> 🚧 This project is under active development and is not stable at this moment. Features, interfaces, and behavior may change frequently. Use with caution in production environments.
+
 *Bulk export email attachments from Outlook with filtering and duplicate detection*
 
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)

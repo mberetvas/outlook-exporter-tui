@@ -112,12 +112,14 @@ class ExportResult:
         messages_processed: Number of messages processed
         messages_matched: Number of messages matching filters
         attachments_saved: Number of attachments saved
+        files_exported: Number of files exported (emails, markdown, etc.)
         duplicates_found: Number of duplicate attachments found
         errors: List of error messages encountered
     """
     messages_processed: int = 0
     messages_matched: int = 0
     attachments_saved: int = 0
+    files_exported: int = 0
     duplicates_found: int = 0
     errors: List[str] = field(default_factory=list)
     

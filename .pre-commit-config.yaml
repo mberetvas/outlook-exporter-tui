@@ -1,0 +1,62 @@
+# Pre-commit hooks for code quality
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+      # Run the formatter
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # Pre-commit hooks for general file cleanup
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+        exclude: ^tests/fixtures/
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+        exclude: ^tests/fixtures/
+      # Check YAML syntax
+      - id: check-yaml
+        args: [--safe]
+      # Check for merge conflicts
+      - id: check-merge-conflict
+      # Check for large files
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      # Prevent committing to main/master
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+      # Check Python syntax
+      - id: check-ast
+      # Check for debugger imports
+      - id: debug-statements
+      # Check JSON syntax
+      - id: check-json
+      # Check TOML syntax  
+      - id: check-toml
+      # Mixed line endings
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+# Run pre-commit on all files occasionally
+# pre-commit run --all-files
+
+# Configuration options
+default_language_version:
+  python: python3.12
+
+# Fail fast on first error
+fail_fast: false
+
+# Show diff when hooks fail
+verbose: true

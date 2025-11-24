@@ -84,14 +84,14 @@ class AttachmentExporter(BaseExporter):
         self,
         attachment,
         folder: Path,
-        email: EmailMetadata,
+        email: Optional[EmailMetadata],
     ) -> bool:
         """Save a single attachment to disk.
 
         Args:
             attachment: Outlook attachment COM object
             folder: Folder to save the attachment in
-            email: Email metadata for logging
+            email: Email metadata for logging (optional for MarkdownExporter)
 
         Returns:
             True if attachment was saved successfully

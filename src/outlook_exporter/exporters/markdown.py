@@ -78,7 +78,7 @@ class MarkdownExporter(AttachmentExporter):
             with final_path.open("w", encoding="utf-8") as f:
                 f.write(markdown_content)
             logger.info(f"Saved markdown: {final_path}")
-            result.attachments_saved += 1
+            result.files_exported += 1
             return final_path
         except Exception as e:
             logger.warning(f"Failed to save markdown '{email.subject}': {e}")

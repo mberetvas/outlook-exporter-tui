@@ -59,7 +59,7 @@ class MessageExporter(BaseExporter):
         try:
             outlook_message.SaveAs(str(final_path))
             logger.info(f"Saved email: {final_path}")
-            result.attachments_saved += 1
+            result.files_exported += 1
             return final_path
         except Exception as e:
             logger.warning(f"Failed to save email '{email.subject}': {e}")
